@@ -1,4 +1,5 @@
 import ctypes
+import struct
 
 
 def crc_table(val, poly, little_endian=True):
