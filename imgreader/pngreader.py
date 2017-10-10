@@ -28,12 +28,12 @@ class PngChunk(object):
         self.computed_crc = mu.crc(data, 0xedb88320, initial=0xffffffff) ^ 0xffffffffff
 
     def __read_type(self):
-        property_bit = 0b00100000
+        property_bit = 5
 
-        self.ancillary_bit = ord(self.type[0]) & property_bit
-        self.private_bit = ord(self.type[1]) & property_bit
-        self.reserved_bit = ord(self.type[2]) & property_bit
-        self.safe_to_copy_bit = ord(self.type[3]) & property_bit
+        self.ancillary_bit = (ord(self.type[0]) >> 5) & 1
+        self.private_bit = (ord(self.type[1]) >> 5) & 1
+        self.reserved_bit = (ord(self.type[2]) >> 5) & 1
+        self.safe_to_copy_bit = (ord(self.type[3]) >> 5) & 1
 
     def __str__(self):
         return "%s: len = %i, chunk_crc = 0x%08x, comp_crc = 0x%08x" % (self.type, self.length, self.chunk_crc, self.computed_crc)
@@ -80,14 +80,35 @@ class ChunkFactory(object):
         chunk_class = ChunkFactory.__CHUNK_MAP__[str.upper(type)]
         return chunk_class(type, length, data, crc)
 
+    @staticmethod
+    def parse_length(rem_contents):
+        return struct.unpack(">I", rem_contents[0:4])[0], rem_contents[4:]
+
+    @staticmethod
+    def parse_chunk_type(rem_contents):
+        return rem_contents[0:4].decode('utf-8'), rem_contents[4:]
+
+    @staticmethod
+    def parse_chunk_data(rem_contents, length):
+        return rem_contents[0:length], rem_contents[length:]
+
+    @staticmethod
+    def parse_crc(rem_contents):
+        return struct.unpack(">I", rem_contents[0:4])[0], rem_contents[4:]
+
+    @staticmethod
+    def parse_chunk(rem_contents):
+        (length, rem_contents) = ChunkFactory.parse_length(rem_contents)
+        (chunk_type, rem_contents) = ChunkFactory.parse_chunk_type(rem_contents)
+        (chunk_data, rem_contents) = ChunkFactory.parse_chunk_data(rem_contents, length)
+        (crc, rem_contents) = ChunkFactory.parse_crc(rem_contents)
+
+        return ChunkFactory.make_chunk(chunk_type, length, chunk_data, crc), rem_contents
+
 
 class PngReader(object):
     SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10]
 
-    """
-        Inits the object
-        :rtype: str
-        """
     def __init__(self, file: str) -> None:
         try:
             with open(file, 'rb') as openfile:
@@ -114,31 +135,11 @@ class PngReader(object):
 
         return None
 
-    def parse_length(self, rem_contents):
-        return struct.unpack(">I", rem_contents[0:4])[0], rem_contents[4:]
-
-    def parse_chunk_type(self, rem_contents):
-        return rem_contents[0:4].decode('utf-8'), rem_contents[4:]
-
-    def parse_chunk_data(self, rem_contents, length):
-        return rem_contents[0:length], rem_contents[length:]
-
-    def parse_crc(self, rem_contents):
-        return struct.unpack(">I", rem_contents[0:4])[0], rem_contents[4:]
-
-    def parse_chunk(self, rem_contents):
-        (length, rem_contents) = self.parse_length(rem_contents)
-        (chunk_type, rem_contents) = self.parse_chunk_type(rem_contents)
-        (chunk_data, rem_contents) = self.parse_chunk_data(rem_contents, length)
-        (crc, rem_contents) = self.parse_crc(rem_contents)
-
-        return ChunkFactory.make_chunk(chunk_type, length, chunk_data, crc), rem_contents
-
     def parse(self):
         rem_content = self.parse_signature(self.contents)
         self.chunks = []
         while len(rem_content) > 0:
-            (chunk, rem_content) = self.parse_chunk(rem_content)
+            (chunk, rem_content) = ChunkFactory.parse_chunk(rem_content)
             self.chunks.append(chunk)
 
 
