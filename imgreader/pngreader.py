@@ -25,7 +25,13 @@ class PngChunk(object):
         self.length = length
         self.data = data
         self.chunk_crc = crc
-        self.computed_crc = mu.crc(data, 0xedb88320, initial=0xffffffff) ^ 0xffffffffff
+        ord_type = bytearray()
+        ord_type.extend(map(ord, type))
+        self.computed_crc = mu.crc(ord_type + data, 0xedb88320, initial=0xffffffff) ^ 0xffffffff
+
+    @property
+    def is_valid(self):
+        return self.computed_crc == self.chunk_crc
 
     def __read_type(self):
         property_bit = 5
@@ -36,7 +42,16 @@ class PngChunk(object):
         self.safe_to_copy_bit = (ord(self.type[3]) >> 5) & 1
 
     def __str__(self):
-        return "%s: len = %i, chunk_crc = 0x%08x, comp_crc = 0x%08x" % (self.type, self.length, self.chunk_crc, self.computed_crc)
+        return "%s(%i%i%i%i): len = %i, chunk_crc = 0x%08x, comp_crc = 0x%08x, valid = %r" % \
+               (self.type,
+                1 if self.ancillary_bit else 0,
+                1 if self.private_bit else 0,
+                1 if self.reserved_bit else 0,
+                1 if self.safe_to_copy_bit else 0,
+                self.length,
+                self.chunk_crc,
+                self.computed_crc,
+                self.is_valid)
 
 
 class PngHeaderChunk(PngChunk):
@@ -56,14 +71,10 @@ class PngHeaderChunk(PngChunk):
         self.interlace_method = int(self.data[12])
 
     def __str__(self):
-        s = '%s\nw: %i, h: %i %i%i%i%i' % (
+        s = '%s\nw: %i, h: %i' % (
             super().__str__(),
             self.width,
-            self.height,
-            1 if self.ancillary_bit else 0,
-            1 if self.private_bit else 0,
-            1 if self.reserved_bit else 0,
-            1 if self.safe_to_copy_bit else 0
+            self.height
         )
 
         return s
@@ -77,7 +88,11 @@ class ChunkFactory(object):
 
     @staticmethod
     def make_chunk(type, length, data, crc):
-        chunk_class = ChunkFactory.__CHUNK_MAP__[str.upper(type)]
+        chunk_class = PngChunk
+
+        if str.upper(type) in ChunkFactory.__CHUNK_MAP__:
+            chunk_class = ChunkFactory.__CHUNK_MAP__[str.upper(type)]
+
         return chunk_class(type, length, data, crc)
 
     @staticmethod
@@ -145,7 +160,7 @@ class PngReader(object):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(message)s')
-    reader = PngReader(os.path.join(imgreader.RESOURCES, 'testfile'))
+    reader = PngReader(os.path.join(imgreader.RESOURCES, 'smiley.png'))
     reader.parse()
 
     for chunk in reader.chunks:

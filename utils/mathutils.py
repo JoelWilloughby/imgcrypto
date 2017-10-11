@@ -24,7 +24,7 @@ def crc(buf, poly, initial=0x00000000, little_endian=True):
     if not little_endian:
         oper = lambda x,y: x << y
 
-    shift = initial
+    shift = int(initial)
     for val in buf:
         shift = crc_table((shift ^ val) & 0xff, poly, little_endian) ^ (oper(shift, 8))
 
