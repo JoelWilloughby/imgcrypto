@@ -42,7 +42,10 @@ class PngChunk(object):
         self.safe_to_copy_bit = (ord(self.type[3]) >> 5) & 1
 
     def __str__(self):
-        return "%s(%i%i%i%i): len = %i, chunk_crc = 0x%08x, comp_crc = 0x%08x, valid = %r" % \
+        return '%s(%i%i%i%i): len = %i, ' \
+               'chunk_crc = 0x%08x, ' \
+               'comp_crc = 0x%08x, ' \
+               'valid = %r' % \
                (self.type,
                 1 if self.ancillary_bit else 0,
                 1 if self.private_bit else 0,
@@ -59,7 +62,6 @@ class PngHeaderChunk(PngChunk):
         super().__init__(type, length, data, crc)
 
         self.parse_data()
-
 
     def parse_data(self):
         self.width = struct.unpack(">I", self.data[0:4])[0]
@@ -79,7 +81,6 @@ class PngHeaderChunk(PngChunk):
 
         return s
 
-        return '%s\nw: %i, h: %i' % (s, self.width, self.height)
 
 class ChunkFactory(object):
     __CHUNK_MAP__ = {
