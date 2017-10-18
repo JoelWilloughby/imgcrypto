@@ -39,3 +39,6 @@ def crc(buf, poly, initial=0x00000000, little_endian=True):
         shift = crc_table((shift ^ val) & 0xff, poly, little_endian) ^ (oper(shift, 8))
 
     return shift
+
+def clamp_bit_depth(val, depth):
+    return val & (pow(2,depth)-1)
